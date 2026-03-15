@@ -72,6 +72,8 @@ Treat this as an orchestrator-only skill:
 - Submit worker prompts with a reliable helper:
   - `submit_prompt() { local target="$1"; shift; tmux send-keys -t "$target" C-u; tmux send-keys -t "$target" "$*"; tmux send-keys -t "$target" C-m; sleep 0.4; tmux send-keys -t "$target" C-m; }`
 - Use `tmux capture-pane` only for prompt-readiness checks or to diagnose a stuck worker.
+- After the worker has accepted the handoff and the controller is waiting on `EVENT_CH`, do not poll the pane for normal progress updates.
+- Prefer an explicit timeout around `tmux wait-for` (for example, `timeout 10m tmux wait-for "$EVENT_CH"`). Only inspect the worker pane if that timeout expires or the handoff is otherwise known to have failed.
 - If the worker still shows queued text and no progress after prompt submission, send one more `C-m`.
 
 ## Lifecycle Commands
@@ -107,8 +109,9 @@ Treat this as an orchestrator-only skill:
 ### Wait for worker signal
 
 - Block on the event channel instead of polling for completion:
-  - `tmux wait-for "$EVENT_CH"`
-- If the worker does not appear to be making progress, use `tmux capture-pane` to inspect state before nudging with another `C-m`.
+  - `timeout 10m tmux wait-for "$EVENT_CH"`
+- Treat `tmux wait-for` as the primary synchronization path. Do not call `tmux capture-pane` while the wait is still within its timeout window.
+- If the timeout expires, inspect once with `tmux capture-pane`, decide whether the worker is stuck, and only then send a recovery nudge such as another `C-m`.
 
 ### Ingest payload into controller
 

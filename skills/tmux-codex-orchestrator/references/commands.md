@@ -63,7 +63,7 @@ submit_prompt "$WORKER" \
 ## Wait for worker signal
 
 ```bash
-tmux wait-for "$EVENT_CH"
+timeout 10m tmux wait-for "$EVENT_CH"
 ```
 
 ## Ingest payload in controller
@@ -84,7 +84,7 @@ NEXT_EVENT_CH="tmux_worker_${WORKER//[:.]/_}_event_$(date +%s%N)"
 submit_prompt "$WORKER" \
   "Use this controller decision and continue: switch to the refresh-token path. For the next handoff, write your payload to ${NEXT_PAYLOAD}. The first line must be STATUS=done or STATUS=blocked. After writing the file, run tmux wait-for -S ${NEXT_EVENT_CH}. Then reply with exactly WORKER_SIGNALLED."
 
-tmux wait-for "$NEXT_EVENT_CH"
+timeout 10m tmux wait-for "$NEXT_EVENT_CH"
 sed -n '1,200p' "$NEXT_PAYLOAD"
 ```
 
@@ -98,6 +98,7 @@ tmux list-panes -t "$CONTROLLER_WIN" -F 'pane=#{pane_index} active=#{pane_active
 ## Capture worker output only for diagnostics
 
 ```bash
+# Only use this after the wait timeout expires or a handoff has clearly failed.
 tmux capture-pane -p -t "$WORKER" -S -180
 ```
 
@@ -131,8 +132,8 @@ W2="$(tmux split-window -d -v -t "$W1" -P -F '#{session_name}:#{window_index}.#{
   "codex --no-alt-screen --dangerously-bypass-approvals-and-sandbox \"\$(cat '$F2')\"")"
 [ "${W2%.*}" = "$CONTROLLER_WIN" ] || { echo "W2 spawned in wrong window: $W2"; exit 1; }
 
-tmux wait-for "$E1"
-tmux wait-for "$E2"
+timeout 10m tmux wait-for "$E1"
+timeout 10m tmux wait-for "$E2"
 sed -n '1,200p' "$P1"
 sed -n '1,200p' "$P2"
 ```
