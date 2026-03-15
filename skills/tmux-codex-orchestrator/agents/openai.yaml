@@ -1,0 +1,4 @@
+interface:
+  display_name: "Tmux Codex Orchestrator"
+  short_description: "Delegate to Codex peers in tmux"
+  default_prompt: "Use $tmux-codex-orchestrator to launch Codex peers in tmux with unique file-backed initial prompts, synchronize handoffs with tmux wait-for, and require file-backed summaries before teardown."
