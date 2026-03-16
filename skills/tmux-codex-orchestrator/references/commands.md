@@ -24,7 +24,7 @@ EVENT_CH="tmux_worker_event_$(date +%s%N)"
 PROMPT_FILE="$(mktemp "/tmp/tmux_worker_prompt_${CONTROLLER//[:.]/_}_XXXXXX.txt")"
 
 cat > "$PROMPT_FILE" <<EOF
-Investigate and fix the failing login flow in /root/app. Work autonomously: inspect the repo, make the changes you judge are needed, and run the relevant verification. Do not start other agents or use tmux orchestration beyond this handoff. When you either complete the task or hit a real blocker requiring controller input, write a short payload to ${PAYLOAD} using a shell command. The first line must be STATUS=done or STATUS=blocked. If done, include concrete outputs, files changed, verification run, and residual risk. If blocked, include the exact question or decision needed. After writing the file, run tmux wait-for -S ${EVENT_CH}. Then reply with exactly WORKER_SIGNALLED.
+Investigate and fix the failing login flow in /root/app. Work autonomously: inspect the repo, make the changes you judge are needed, and run the relevant verification. Do not start other agents or use tmux orchestration beyond this handoff. When you either complete the task or hit a real blocker requiring controller input, write a short payload to ${PAYLOAD} using a shell command. The first line must be STATUS=done or STATUS=blocked. If done, include concrete outputs, files changed, verification run, and residual risk. If blocked, include the exact question or decision needed. After writing the file, run tmux wait-for -S ${EVENT_CH}.
 EOF
 
 WORKER="$(tmux split-window -d -h -t "$CONTROLLER" -P -F '#{session_name}:#{window_index}.#{pane_index}' \
@@ -47,10 +47,7 @@ PAYLOAD="$(mktemp "/tmp/tmux_worker_${WORKER//[:.]/_}_payload_XXXXXX.txt")"
 EVENT_CH="tmux_worker_${WORKER//[:.]/_}_event_$(date +%s%N)"
 
 submit_prompt "$WORKER" \
-  "Investigate and fix the failing login flow in /root/app. Work autonomously: inspect the repo, make the changes you judge are needed, and run the relevant verification. Do not start other agents or use tmux orchestration beyond this handoff. When you either complete the task or hit a real blocker requiring controller input, write a short payload to ${PAYLOAD} using a shell command. The first line must be STATUS=done or STATUS=blocked. If done, include concrete outputs, files changed, verification run, and residual risk. If blocked, include the exact question or decision needed. After writing the file, run tmux wait-for -S ${EVENT_CH}. Then reply with exactly WORKER_SIGNALLED."
-
-# If capture still shows queued text and no progress, submit once more.
-tmux send-keys -t "$WORKER" C-m
+  "Investigate and fix the failing login flow in /root/app. Work autonomously: inspect the repo, make the changes you judge are needed, and run the relevant verification. Do not start other agents or use tmux orchestration beyond this handoff. When you either complete the task or hit a real blocker requiring controller input, write a short payload to ${PAYLOAD} using a shell command. The first line must be STATUS=done or STATUS=blocked. If done, include concrete outputs, files changed, verification run, and residual risk. If blocked, include the exact question or decision needed. After writing the file, run tmux wait-for -S ${EVENT_CH}."
 ```
 
 ## Nudge worker without micromanaging
@@ -82,7 +79,7 @@ NEXT_PAYLOAD="$(mktemp "/tmp/tmux_worker_${WORKER//[:.]/_}_payload_XXXXXX.txt")"
 NEXT_EVENT_CH="tmux_worker_${WORKER//[:.]/_}_event_$(date +%s%N)"
 
 submit_prompt "$WORKER" \
-  "Use this controller decision and continue: switch to the refresh-token path. For the next handoff, write your payload to ${NEXT_PAYLOAD}. The first line must be STATUS=done or STATUS=blocked. After writing the file, run tmux wait-for -S ${NEXT_EVENT_CH}. Then reply with exactly WORKER_SIGNALLED."
+  "Use this controller decision and continue: switch to the refresh-token path. For the next handoff, write your payload to ${NEXT_PAYLOAD}. The first line must be STATUS=done or STATUS=blocked. After writing the file, run tmux wait-for -S ${NEXT_EVENT_CH}."
 
 timeout 10m tmux wait-for "$NEXT_EVENT_CH"
 sed -n '1,200p' "$NEXT_PAYLOAD"

@@ -49,6 +49,7 @@ Treat this as an orchestrator-only skill:
   - `tmux split-window ... "codex --no-alt-screen --dangerously-bypass-approvals-and-sandbox \"\$(cat '$PROMPT_FILE')\""`
 - This avoids the fragile pattern of launching bare Codex and relying on a first newline to submit the initial prompt.
 - Tell the worker to write the payload file first, then signal the channel with `tmux wait-for -S "$EVENT_CH"`.
+- Do not require a second pane-visible acknowledgement after signaling. The event signal plus the payload file is the handoff.
 - Require the first line of the payload to be one of:
   - `STATUS=done`
   - `STATUS=blocked`
@@ -71,10 +72,9 @@ Treat this as an orchestrator-only skill:
 - Use unique absolute prompt, payload, or summary file paths under `/tmp/` and unique tmux event channel names (never fixed names).
 - Submit worker prompts with a reliable helper:
   - `submit_prompt() { local target="$1"; shift; tmux send-keys -t "$target" C-u; tmux send-keys -t "$target" "$*"; tmux send-keys -t "$target" C-m; sleep 0.4; tmux send-keys -t "$target" C-m; }`
-- Use `tmux capture-pane` only for prompt-readiness checks or to diagnose a stuck worker.
+- Use `tmux capture-pane` only after startup failure or wait timeout, not as part of the normal handoff path.
 - After the worker has accepted the handoff and the controller is waiting on `EVENT_CH`, do not poll the pane for normal progress updates.
 - Prefer an explicit timeout around `tmux wait-for` (for example, `timeout 10m tmux wait-for "$EVENT_CH"`). Only inspect the worker pane if that timeout expires or the handoff is otherwise known to have failed.
-- If the worker still shows queued text and no progress after prompt submission, send one more `C-m`.
 
 ## Lifecycle Commands
 
@@ -89,7 +89,7 @@ Treat this as an orchestrator-only skill:
   - Write the initial brief into `"$PROMPT_FILE"` with a heredoc or `printf`, including the current `PAYLOAD` and `EVENT_CH` values.
   - `WORKER="$(tmux split-window -d -h -t "$CONTROLLER" -P -F '#{session_name}:#{window_index}.#{pane_index}' "codex --no-alt-screen --dangerously-bypass-approvals-and-sandbox \"\$(cat '$PROMPT_FILE')\"")"`
   - `[ "${WORKER%.*}" = "$CONTROLLER_WIN" ] || { echo "worker spawned in wrong window: $WORKER (expected $CONTROLLER_WIN.*)"; exit 1; }`
-- Wait briefly and capture only to verify prompt readiness if needed:
+- If startup appears to fail, inspect once with:
   - `tmux capture-pane -p -t "$WORKER" -S -80`
 - If the user explicitly wants an idle worker with no initial task, launching bare Codex is still allowed:
   - `tmux split-window -d -h -t "$CONTROLLER" -P -F '#{session_name}:#{window_index}.#{pane_index}' 'codex --no-alt-screen --dangerously-bypass-approvals-and-sandbox'`
@@ -100,11 +100,9 @@ Treat this as an orchestrator-only skill:
   - `PAYLOAD="$(mktemp "/tmp/tmux_worker_${WORKER//[:.]/_}_payload_XXXXXX.txt")"`
   - `EVENT_CH="tmux_worker_${WORKER//[:.]/_}_event_$(date +%s%N)"`
 - Send a brief that covers the outcome, essential context, hard constraints, definition of done, and the event contract:
-  - `submit_prompt "$WORKER" "Investigate and fix the failing login flow in /root/app. Work autonomously: inspect the codebase, make the changes you judge are needed, and run the relevant verification. Do not start other agents or use tmux orchestration beyond this handoff. When you either complete the task or hit a real blocker requiring controller input, write a short payload to ${PAYLOAD} using a shell command. The first line must be STATUS=done or STATUS=blocked. If done, include concrete outputs, files changed, verification run, and residual risk. If blocked, include the exact question or decision needed. After writing the file, run tmux wait-for -S ${EVENT_CH}. Then reply with exactly WORKER_SIGNALLED."`
+  - `submit_prompt "$WORKER" "Investigate and fix the failing login flow in /root/app. Work autonomously: inspect the codebase, make the changes you judge are needed, and run the relevant verification. Do not start other agents or use tmux orchestration beyond this handoff. When you either complete the task or hit a real blocker requiring controller input, write a short payload to ${PAYLOAD} using a shell command. The first line must be STATUS=done or STATUS=blocked. If done, include concrete outputs, files changed, verification run, and residual risk. If blocked, include the exact question or decision needed. After writing the file, run tmux wait-for -S ${EVENT_CH}."`
 - If the worker goes off course, prefer a narrow correction over a restart:
   - `submit_prompt "$WORKER" "Keep your current approach, but the failure is in token refresh rather than session creation. Re-focus there, rerun the relevant checks, and continue."`
-- If queued text remains with no work progress, send one more Enter:
-  - `tmux send-keys -t "$WORKER" C-m`
 
 ### Wait for worker signal
 
