@@ -76,6 +76,21 @@ Treat this as an orchestrator-only skill:
 - After the worker has accepted the handoff and the controller is waiting on `EVENT_CH`, do not poll the pane for normal progress updates.
 - Prefer an explicit timeout around `tmux wait-for` (for example, `timeout 10m tmux wait-for "$EVENT_CH"`). Only inspect the worker pane if that timeout expires or the handoff is otherwise known to have failed.
 
+## Git Isolation
+
+- If multiple workers will edit the same repository in parallel, do not aim them at the same checkout.
+- Prefer one branch plus one `git worktree` per worker so each pane has an independent working tree and index while sharing the main repo's object store.
+- Create worktrees from the controller before spawning panes:
+  - `REPO=/root/project`
+  - `BRANCH=fix/example-task`
+  - `WORKTREE=/tmp/project_example_task_$(date +%Y%m%d)`
+  - `git -C "$REPO" worktree add -b "$BRANCH" "$WORKTREE" main`
+- Launch the worker pane in that worktree with `tmux split-window ... -c "$WORKTREE" ...`.
+- If the branch or worktree path already exists, stop and resolve that explicitly instead of reusing it by accident.
+- Keep the controller in the main checkout unless there is a reason to move it.
+- After ingesting the worker's `STATUS=done` payload, you may remove the worktree when it is no longer needed:
+  - `git -C "$REPO" worktree remove "$WORKTREE"`
+
 ## Lifecycle Commands
 
 ### Spawn a worker pane
